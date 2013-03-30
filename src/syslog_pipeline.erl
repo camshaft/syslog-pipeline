@@ -4,33 +4,50 @@
 %%
 -module (syslog_pipeline).
 
--export([start_pipeline/2]).
--export([stop_pipeline/1]).
--export([set_env/3]).
+-export([start/0, start/2]).
+-export([stop/0, stop/1]).
+-export([handle/1]).
+-export([parse_header/1]).
+-export([parse_body/1]).
+-export([route_message/1]).
 -export([get_value/3]).
 
-%% @doc Start a syslog drain listener.
--spec start_pipeline(any(), any()) -> {ok, pid()}.
-start_pipeline(Ref, Opts) ->
-  {Ref, Opts}.
 
-%% @doc Stop a listener.
--spec stop_pipeline(any()) -> ok.
-stop_pipeline(_Ref) ->
+start() ->
+  application:start(?MODULE).
+
+stop() ->
+  application:stop(?MODULE).
+
+start(_Type, _Args) ->
+  syslog_pipeline_sup:start_link().
+
+stop(_State) ->
   ok.
 
-%% @doc Convenience function for setting an environment value.
-%%
-%% Allows you to update live an environment value; mainly used to
-%% add/remove parsers and emitters
--spec set_env(any(), atom(), any()) -> ok.
-set_env(_Ref, _Name, _Value) ->
-  %% TODO
-  % Opts = ranch:get_protocol_options(Ref),
-  % Opts2 = [{Name, Value}|lists:keydelete(Name, 1, Opts)],
-  % ok = ranch:set_protocol_options(Ref, Opts2).
-  ok.
+handle(Buffer)->
+  do_work(syslog_pipeline_worker_frame, call, Buffer, dropped_frames).
 
+parse_header(Frame)->
+  do_work(syslog_pipeline_worker_header, cast, Frame, dropped_headers).
+
+parse_body(Message)->
+  do_work(syslog_pipeline_worker_body, cast, Message, dropped_bodies).
+
+route_message(Message)->
+  io:format("~p~n", [Message]).
+  % do_work(syslog_pipeline_worker_router, cast, Messages, dropped_routes).
+
+
+do_work(Pool, Fn, Messages, Metric)->
+  case poolboy:checkout(Pool, false) of
+    full ->
+      folsom_metrics:notify({Metric, {inc, 1}});
+    Worker ->
+      Result = gen_server:Fn(Worker, {handle, Messages}),
+      poolboy:checkin(Pool, Worker),
+      Result
+  end.
 
 %% @doc Faster alternative to proplists:get_value/3.
 %% @private
