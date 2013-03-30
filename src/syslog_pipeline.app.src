@@ -1,0 +1,14 @@
+{application, syslog_pipeline,
+ [
+  {id, "syslog-pipeline"},
+  {description, "Syslog processing pipeline"},
+  {vsn, "0.1.0"},
+  {registered, [syslog_pipeline_sup]},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  ranch
+                 ]},
+  {mod, { syslog_pipeline_app, []}},
+  {env, []}
+ ]}.
