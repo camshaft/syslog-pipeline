@@ -1,14 +1,35 @@
-{application, syslog_pipeline,
- [
+{application, syslog_pipeline, [
   {id, "syslog-pipeline"},
   {description, "Syslog processing pipeline"},
   {vsn, "0.1.0"},
   {registered, [syslog_pipeline_sup]},
-  {applications, [
-                  kernel,
-                  stdlib,
-                  ranch
-                 ]},
+  {applications, [kernel, stdlib, folsom]},
   {mod, { syslog_pipeline_app, []}},
-  {env, []}
- ]}.
+  {env, [
+    {workers, [
+      {syslog_pipeline_worker_frame, [
+        {size, 10},
+        {max_overflow, 20}
+      ], [
+        {next, {syslog_pipeline, parse_header}}
+      ]},
+      {syslog_pipeline_worker_header, [
+        {size, 10},
+        {max_overflow, 20}
+      ], [
+        {next, {syslog_pipeline, parse_body}}
+      ]},
+      {syslog_pipeline_worker_body, [
+        {size, 10},
+        {max_overflow, 20}
+      ], [
+        {next, {syslog_pipeline, route_message}},
+        {parsers, [syslog_message_keyvalue]}
+      ]},
+      {syslog_pipeline_worker_router, [
+        {size, 10},
+        {max_overflow, 20}
+      ], []}
+    ]}
+  ]}
+]}.
