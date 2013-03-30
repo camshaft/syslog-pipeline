@@ -10,7 +10,7 @@
 -export ([compile_routes/2]).
 -export ([exec_router/1]).
 
-handle(Buffer, _Options=#drain_opts{feedback=true,parsers=Parsers,routes=Routes})->
+handle(Buffer, _Options=#pipeline_opts{feedback=true,parsers=Parsers,routes=Routes})->
   {_FrameTime, {Frames, Buffer2}} = timer:tc(syslog_octet_frame, parse, [Buffer]),
   {_ParseTime, Messages} = timer:tc(?MODULE, parse_frame, [Frames]),
   {_ParseBodyTime, ValidMessages} = timer:tc(?MODULE, parse_body, [Messages, Parsers, []]),
@@ -19,7 +19,7 @@ handle(Buffer, _Options=#drain_opts{feedback=true,parsers=Parsers,routes=Routes}
   Total = _FrameTime+_ParseTime+_ParseBodyTime+_CompileTime+_RouteTime,
   ?debugFmt("~nFrame: ~p~nParse: ~p~nBody: ~p~nCompile: ~p~nRoute: ~p~n~nTotal time: ~p~n",[_FrameTime, _ParseTime, _ParseBodyTime, _CompileTime, _RouteTime, Total]),
   Buffer2;
-handle(Buffer, _Options=#drain_opts{parsers=Parsers,routes=Routes})->
+handle(Buffer, _Options=#pipeline_opts{parsers=Parsers,routes=Routes})->
   {Frames, Buffer2} = syslog_octet_frame:parse(Buffer),
   Messages = parse_frame(Frames),
   ValidMessages = parse_body(Messages, Parsers, []),
