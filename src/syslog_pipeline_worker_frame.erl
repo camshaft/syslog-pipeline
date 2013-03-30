@@ -2,8 +2,6 @@
 -behaviour(gen_server).
 -behaviour(poolboy_worker).
 
--include("syslog_pipeline.hrl").
-
 -export([start_link/1]).
 -export([init/1]).
 -export([handle_call/3]).
@@ -13,7 +11,7 @@
 -export([code_change/3]).
 
 -record (state, {
-  next = {syslog_pipeline, parse_header}
+  next
 }).
 
 start_link(Opts) ->
@@ -23,9 +21,9 @@ start_link(Opts) ->
 init(State) ->
   {ok, State}.
 
-handle_call({handle, Buffer}, _From, State) ->
-  {Frames, Buffer2} = folsom_metrics:histogram_timed_update(frame_time,syslog_octet_frame,parse,[Buffer]),
-  self() ! {next, Frames},
+handle_call({handle, Buffer}, _From, #state{next={Module, Function}}=State) ->
+  {Count, Buffer2} = folsom_metrics:histogram_timed_update(frame_time,syslog_octet_frame,parse_async,[Buffer,Module,Function]),
+  folsom_metrics:notify({frames, Count}),
   {reply, Buffer2, State};
 handle_call(_Request, _From, State) ->
   {reply, undef, State}.
@@ -35,10 +33,6 @@ handle_cast(_Msg, State) ->
 
 handle_info({set_next, Next}, State) ->
   {noreply, State#state{next=Next}};
-handle_info({next, Frames}, #state{next={Module, Function}}=State) ->
-  [Module:Function(Frame) || Frame <- Frames],
-  folsom_metrics:notify({frames, length(Frames)}),
-  {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.
 

@@ -11,7 +11,7 @@
 -export([code_change/3]).
 
 -record (state, {
-  next = {syslog_pipeline, parse_body}
+  next
 }).
 
 start_link(Opts) ->

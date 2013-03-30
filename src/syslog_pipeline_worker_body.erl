@@ -14,13 +14,14 @@
 -export([parse_body/2]).
 
 -record (state, {
-  parsers = [syslog_message_keyvalue],
-  next = {syslog_pipeline, route_messages}
+  parsers,
+  next
 }).
 
 start_link(Opts) ->
   Next = syslog_pipeline:get_value(next, Opts, {syslog_pipeline, route_messages}),
-  gen_server:start_link(?MODULE, #state{next=Next}, []).
+  Parsers = syslog_pipeline:get_value(parsers, Opts, []),
+  gen_server:start_link(?MODULE, #state{next=Next,parsers=Parsers}, []).
 
 init(State) ->
   {ok, State}.
