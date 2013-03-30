@@ -22,6 +22,9 @@ init([]) ->
   %% Initialize the metrics
   syslog_pipeline_metrics:init(),
 
+  %% If we have feedback enabled, emit the metrics into ourselves
+  timer:apply_interval(1000, syslog_pipeline_metrics, submit_report, [{syslog_pipeline, route_message}]),
+
   {ok, Pools} = application:get_env(syslog_pipeline, workers),
   PoolSpecs = lists:map(fun({Name, SizeArgs, WorkerArgs}) ->
       PoolArgs = [{name, {local, Name}},
