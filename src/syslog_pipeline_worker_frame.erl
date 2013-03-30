@@ -36,8 +36,8 @@ handle_cast(_Msg, State) ->
 handle_info({set_next, Next}, State) ->
   {noreply, State#state{next=Next}};
 handle_info({next, Frames}, #state{next={Module, Function}}=State) ->
+  [Module:Function(Frame) || Frame <- Frames],
   folsom_metrics:notify({frames, length(Frames)}),
-  Module:Function(Frames),
   {noreply, State};
 handle_info(_Info, State) ->
   {noreply, State}.

@@ -24,14 +24,19 @@ init(State) ->
 handle_call(_Request, _From, State) ->
   {reply, undef, State}.
 
-handle_cast({handle, Frames}, #state{next={Module, Function}}=State) ->
-  Messages = [folsom_metrics:histogram_timed_update(header_time,syslog_header,parse,[Frame]) || Frame <- Frames],
-  Module:Function(Messages),
+handle_cast({handle, Frame}, #state{next={Module, Function}}=State) ->
+  case folsom_metrics:histogram_timed_update(header_time,syslog_header,parse,[Frame]) of
+    {ok, ValidMessage} ->
+      folsom_metrics:notify({valid_headers, 1}),
+      Module:Function(ValidMessage);
+    _ ->
+      folsom_metrics:notify({invalid_headers, 1})
+  end,
   {noreply, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
-handle_info({next, Next}, State) ->
+handle_info({set_next, Next}, State) ->
   {noreply, State#state{next=Next}};
 handle_info(_Info, State) ->
   {noreply, State}.

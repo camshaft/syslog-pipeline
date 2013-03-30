@@ -23,7 +23,7 @@
         {size, 10},
         {max_overflow, 20}
       ], [
-        {next, {syslog_pipeline, route_messages}}
+        {next, {syslog_pipeline, route_message}}
       ]}
 %      {syslog_pipeline_worker_router, [
 %        {size, 10},

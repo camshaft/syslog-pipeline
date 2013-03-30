@@ -9,7 +9,7 @@
 -export([handle/1]).
 -export([parse_header/1]).
 -export([parse_body/1]).
--export([route_messages/1]).
+-export([route_message/1]).
 -export([get_value/3]).
 
 
@@ -28,14 +28,14 @@ stop(_State) ->
 handle(Buffer)->
   do_work(syslog_pipeline_worker_frame, call, Buffer, dropped_frames).
 
-parse_header(Frames)->
-  do_work(syslog_pipeline_worker_header, cast, Frames, dropped_headers).
+parse_header(Frame)->
+  do_work(syslog_pipeline_worker_header, cast, Frame, dropped_headers).
 
-parse_body(Messages)->
-  do_work(syslog_pipeline_worker_body, cast, Messages, dropped_bodies).
+parse_body(Message)->
+  do_work(syslog_pipeline_worker_body, cast, Message, dropped_bodies).
 
-route_messages(Messages)->
-  io:format("~p~n", [Messages]).
+route_message(Message)->
+  io:format("~p~n", [Message]).
   % do_work(syslog_pipeline_worker_router, cast, Messages, dropped_routes).
 
 

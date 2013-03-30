@@ -11,7 +11,7 @@
 -export([code_change/3]).
 
 %% @private
--export([parse_body/3]).
+-export([parse_body/2]).
 
 -record (state, {
   parsers = [syslog_message_keyvalue],
@@ -28,17 +28,21 @@ init(State) ->
 handle_call(_Request, _From, State) ->
   {reply, undef, State}.
 
-handle_cast({handle, Messages}, #state{parsers=Parsers, next={Module,Function}}=State) ->
-  ValidMessages = folsom_metrics:histogram_timed_update(body_time,?MODULE,parse_body,[Messages, Parsers, []]),
-  folsom_metrics:notify({messages, length(ValidMessages)}),
-  Module:Function(ValidMessages),
+handle_cast({handle, Message}, #state{parsers=Parsers, next={Module,Function}}=State) ->
+  case folsom_metrics:histogram_timed_update(body_time,?MODULE,parse_body,[Message, Parsers]) of
+    {ok, ValidMessage} ->
+      folsom_metrics:notify({valid_bodies, 1}),
+      Module:Function(ValidMessage);
+    _ ->
+      folsom_metrics:notify({invalid_bodies, 1})
+  end,
   {noreply, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
-handle_info({next, Next}, State) ->
+handle_info({set_next, Next}, State) ->
   {noreply, State#state{next=Next}};
-handle_info({parsers, Parsers}, State) ->
+handle_info({set_parsers, Parsers}, State) ->
   {noreply, State#state{parsers=Parsers}};
 handle_info(_Msg, State) ->
   {noreply, State}.
@@ -49,25 +53,23 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
-parse_body([], _, ValidMessages)->
-  ValidMessages;
-parse_body([{ok, Message}|Messages], Parsers, ValidMessages)->
+parse_body(Message, Parsers)->
   case exec_parser(syslog_pipeline:get_value(message, Message, <<>>), Parsers) of
     {ok, MessageFields} ->
-      parse_body(Messages, Parsers, [[{message_fields,MessageFields}|Message]|ValidMessages]);
-    _ ->
-      parse_body(Messages, Parsers, ValidMessages)
-  end;
-parse_body([_|Messages], Parsers, ValidMessages)->
-  parse_body(Messages, Parsers, ValidMessages).
+      {ok, [{message_fields,MessageFields}|Message]};
+    E ->
+      E
+  end.
 
+%% TODO make async calls and prioritize the results
+exec_parser(<<>>, _)->
+  noop;
 exec_parser(_, [])->
-  error;
+  noop;
 exec_parser(Body, [Parser|Parsers])->
   case catch Parser:parse(Body) of
     {ok, MessageFields} ->
       {ok, MessageFields};
-    E ->
-      io:format("~p~n", [E]),
+    _ ->
       exec_parser(Body, Parsers)
   end.
