@@ -1,4 +1,4 @@
--module(syslog_pipeline_router).
+-module(syslog_pipeline_worker_router).
 
 -include("syslog_pipeline.hrl").
 -include_lib("eunit/include/eunit.hrl").
