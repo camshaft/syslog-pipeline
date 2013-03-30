@@ -2,7 +2,6 @@
 
 -export([init/0]).
 -export([submit_report/1]).
--export([dropped_messages/0]).
 
 init()->
   %% Frames
@@ -29,9 +28,13 @@ submit_report({Mod, Function})->
   Time = calendar:universal_time(),
   %% TODO add more metrics
   [Mod:Function(make_message(Time, Key, Value)) || {Key, Value} <- [
-    {<<"frames_per_second">>, per_second(frames)},
-    {<<"messages_per_second">>, per_second(valid_bodies)},
-    {<<"events_per_second">>, per_second(events)}
+    {<<"frames_per_minute">>, per_minute(frames)},
+    {<<"messages_per_minute">>, per_minute(valid_bodies)},
+    {<<"events_per_minute">>, per_minute(events)},
+    {<<"dropped_frames">>, folsom_metrics:get_metric_value(dropped_frames)},
+    {<<"dropped_headers">>, folsom_metrics:get_metric_value(dropped_headers)},
+    {<<"dropped_bodies">>, folsom_metrics:get_metric_value(dropped_bodies)},
+    {<<"dropped_routes">>, folsom_metrics:get_metric_value(dropped_routes)}
   ]],
   ok.
 
@@ -49,14 +52,6 @@ make_message(Time, Key, Value)->
     ]}
   ].
 
-dropped_messages()->
-  [
-    {frames, folsom_metrics:get_metric_value(dropped_frames)},
-    {headers, folsom_metrics:get_metric_value(dropped_headers)},
-    {bodies, folsom_metrics:get_metric_value(dropped_bodies)},
-    {routes, folsom_metrics:get_metric_value(dropped_routes)}
-  ].
-
-per_second(Name)->
+per_minute(Name)->
   Props = folsom_metrics:get_metric_value(Name),
-  syslog_pipeline:get_value(one, Props, 0)/60.
+  syslog_pipeline:get_value(one, Props, 0).
