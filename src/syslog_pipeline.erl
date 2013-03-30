@@ -4,8 +4,8 @@
 %%
 -module (syslog_pipeline).
 
--export ([start/0, start/2]).
--export ([stop/0, stop/1]).
+-export([start/0, start/2]).
+-export([stop/0, stop/1]).
 -export([handle/1]).
 -export([parse_header/1]).
 -export([parse_body/1]).
@@ -48,7 +48,6 @@ do_work(Pool, Fn, Messages, Metric)->
       poolboy:checkin(Pool, Worker),
       Result
   end.
-
 
 %% @doc Faster alternative to proplists:get_value/3.
 %% @private

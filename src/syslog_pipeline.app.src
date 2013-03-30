@@ -23,14 +23,13 @@
         {size, 10},
         {max_overflow, 20}
       ], [
-        {next, {syslog_pipeline, route_message}}
-      ]}
-%      {syslog_pipeline_worker_router, [
-%        {size, 10},
-%        {max_overflow, 20}
-%      ], [
-%        {next, {syslog_pipeline, parse_body}}
-%      ]}
+        {next, {syslog_pipeline, route_message}},
+        {parsers, [syslog_message_keyvalue]}
+      ]},
+      {syslog_pipeline_worker_router, [
+        {size, 10},
+        {max_overflow, 20}
+      ], []}
     ]}
   ]}
 ]}.

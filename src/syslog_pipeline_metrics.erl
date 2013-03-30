@@ -2,11 +2,7 @@
 
 -export([init/0]).
 -export([submit_report/1]).
--export([report/1]).
 -export([dropped_messages/0]).
--export([frames_per_second/0]).
--export([messages_per_second/0]).
--export([events_per_second/0]).
 
 init()->
   %% Frames
@@ -29,12 +25,29 @@ init()->
   %% Events
   folsom_metrics:new_spiral(events).
 
-%% TODO take our metrics and send them back through the router
-submit_report({_Mod, _Function})->
+submit_report({Mod, Function})->
+  Time = calendar:universal_time(),
+  %% TODO add more metrics
+  [Mod:Function(make_message(Time, Key, Value)) || {Key, Value} <- [
+    {<<"frames_per_second">>, per_second(frames)},
+    {<<"messages_per_second">>, per_second(valid_bodies)},
+    {<<"events_per_second">>, per_second(events)}
+  ]],
   ok.
 
-report(Name)->
-  folsom_metrics:get_histogram_statistics(Name).
+make_message(Time, Key, Value)->
+  [
+    {priority, 40},
+    {version, 1},
+    {timestamp, Time},
+    {hostname, <<"localhost">>},
+    {app_name, <<"syslog_pipeline">>},
+    {proc_id, <<"worker.1">>},
+    {message_fields, [
+      {<<"measure">>, Key},
+      {<<"val">>, Value}
+    ]}
+  ].
 
 dropped_messages()->
   [
@@ -43,15 +56,6 @@ dropped_messages()->
     {bodies, folsom_metrics:get_metric_value(dropped_bodies)},
     {routes, folsom_metrics:get_metric_value(dropped_routes)}
   ].
-
-frames_per_second()->
-  per_second(frames).
-
-messages_per_second()->
-  per_second(messages).
-  
-events_per_second()->
-  per_second(events).
 
 per_second(Name)->
   Props = folsom_metrics:get_metric_value(Name),
