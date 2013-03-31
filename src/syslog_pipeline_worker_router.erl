@@ -9,6 +9,8 @@
 -export([terminate/2]).
 -export([code_change/3]).
 
+-export([do_routes/2]).
+
 -record (state, {
   adapters
 }).
@@ -24,7 +26,7 @@ handle_call(_Request, _From, State) ->
   {reply, undef, State}.
 
 handle_cast({handle, Message}, #state{adapters=Adapters}=State) ->
-  Results = [syslog_pipeline:convert(Message, Adapter) || Adapter <- Adapters, Adapter:is_valid(Message)],
+  Results = folsom_metrics:histogram_timed_update(router_time,?MODULE,do_routes,[Message, Adapters]),
   folsom_metrics:notify({events, length(Results)}),
   {noreply, State};
 handle_cast(_Msg, State) ->
@@ -38,3 +40,6 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+do_routes(Message, Adapters)->
+  [syslog_pipeline:convert(Message, Adapter) || Adapter <- Adapters, Adapter:is_valid(Message)].

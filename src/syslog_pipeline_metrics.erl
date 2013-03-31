@@ -35,7 +35,12 @@ submit_report({Mod, Function})->
     {<<"dropped_frames">>, folsom_metrics:get_metric_value(dropped_frames)},
     {<<"dropped_headers">>, folsom_metrics:get_metric_value(dropped_headers)},
     {<<"dropped_bodies">>, folsom_metrics:get_metric_value(dropped_bodies)},
-    {<<"dropped_routes">>, folsom_metrics:get_metric_value(dropped_routes)}
+    {<<"dropped_routes">>, folsom_metrics:get_metric_value(dropped_routes)},
+    {<<"dropped_routes">>, folsom_metrics:get_metric_value(dropped_events)},
+    {<<"frame_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(frame_time), -1)},
+    {<<"header_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(header_time), -1)},
+    {<<"body_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(body_time), -1)},
+    {<<"router_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(router_time), -1)}
   ]],
   ok.
 
