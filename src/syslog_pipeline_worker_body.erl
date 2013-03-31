@@ -1,6 +1,5 @@
 -module(syslog_pipeline_worker_body).
 -behaviour(gen_server).
--behaviour(poolboy_worker).
 
 -export([start_link/1]).
 -export([init/1]).
@@ -19,7 +18,7 @@
 }).
 
 start_link(Opts) ->
-  Next = syslog_pipeline:get_value(next, Opts, {syslog_pipeline, route_messages}),
+  Next = syslog_pipeline:get_value(next, Opts, {syslog_pipeline, route_message}),
   Parsers = syslog_pipeline:get_value(parsers, Opts, []),
   gen_server:start_link(?MODULE, #state{next=Next,parsers=Parsers}, []).
 

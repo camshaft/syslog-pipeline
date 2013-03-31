@@ -1,9 +1,9 @@
 %% @doc Behaviour for emitters.
 %%
-%% Only one function needs to be implemented, <em>emit/1</em>.
+%% Only one function needs to be implemented, <em>send/1</em>.
 %% It receives a list of parsed events from a syslog drain.
 -module(syslog_pipeline_emitter).
 
--callback emit(Frame)
+-callback send(Events)
   -> any()
-  when Frame::list([{binary(), binary()}]).
+  when Events::list([any()]).

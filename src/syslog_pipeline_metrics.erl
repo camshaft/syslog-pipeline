@@ -22,7 +22,8 @@ init()->
   folsom_metrics:new_histogram(router_time, uniform),
   folsom_metrics:new_counter(dropped_routes),
   %% Events
-  folsom_metrics:new_spiral(events).
+  folsom_metrics:new_spiral(events),
+  folsom_metrics:new_counter(dropped_events).
 
 submit_report({Mod, Function})->
   Time = calendar:universal_time(),

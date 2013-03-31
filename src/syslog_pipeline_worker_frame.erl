@@ -1,6 +1,5 @@
 -module(syslog_pipeline_worker_frame).
 -behaviour(gen_server).
--behaviour(poolboy_worker).
 
 -export([start_link/1]).
 -export([init/1]).

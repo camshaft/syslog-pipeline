@@ -10,6 +10,7 @@
 -export([parse_header/1]).
 -export([parse_body/1]).
 -export([route_message/1]).
+-export([convert/2]).
 -export([get_value/3]).
 
 
@@ -35,9 +36,10 @@ parse_body(Message)->
   do_work(syslog_pipeline_worker_body, cast, Message, dropped_bodies).
 
 route_message(Message)->
-  io:format("~p~n", [Message]).
-  % do_work(syslog_pipeline_worker_router, cast, Messages, dropped_routes).
+  do_work(syslog_pipeline_worker_router, cast, Message, dropped_routes).
 
+convert(Message, Worker)->
+  do_work(Worker, cast, Message, dropped_events).
 
 do_work(Pool, Fn, Messages, Metric)->
   case poolboy:checkout(Pool, false) of

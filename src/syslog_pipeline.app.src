@@ -29,7 +29,9 @@
       {syslog_pipeline_worker_router, [
         {size, 10},
         {max_overflow, 20}
-      ], []}
+      ], [
+        {converters, []}
+      ]}
     ]}
   ]}
 ]}.
