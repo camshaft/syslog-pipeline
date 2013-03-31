@@ -10,12 +10,12 @@
 -export([code_change/3]).
 
 -record (state, {
-  converters
+  adapters
 }).
 
 start_link(Opts) ->
-  Converters = syslog_pipeline:get_value(converters, Opts, []),
-  gen_server:start_link(?MODULE, #state{converters=Converters}, []).
+  Adapters = syslog_pipeline:get_value(adapters, Opts, []),
+  gen_server:start_link(?MODULE, #state{adapters=Adapters}, []).
 
 init(State) ->
   {ok, State}.
@@ -23,8 +23,8 @@ init(State) ->
 handle_call(_Request, _From, State) ->
   {reply, undef, State}.
 
-handle_cast({handle, Message}, #state{converters=Converters}=State) ->
-  Results = [syslog_pipeline:convert(Message, Converter) || Converter <- Converters, Converter:is_valid(Message)],
+handle_cast({handle, Message}, #state{adapters=Adapters}=State) ->
+  Results = [syslog_pipeline:convert(Message, Adapter) || Adapter <- Adapters, Adapter:is_valid(Message)],
   folsom_metrics:notify({events, length(Results)}),
   {noreply, State};
 handle_cast(_Msg, State) ->

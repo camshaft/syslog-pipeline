@@ -30,7 +30,7 @@
         {size, 10},
         {max_overflow, 20}
       ], [
-        {converters, []}
+        {adapters, []}
       ]}
     ]}
   ]}
