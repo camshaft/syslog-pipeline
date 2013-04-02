@@ -21,8 +21,9 @@ init(State) ->
   {ok, State}.
 
 handle_call({handle, Buffer}, _From, #state{next={Module, Function}}=State) ->
-  {Count, Buffer2} = folsom_metrics:histogram_timed_update(frame_time,syslog_octet_frame,parse_async,[Buffer,Module,Function]),
-  folsom_metrics:notify({frames, Count}),
+  {Frames, Buffer2} = folsom_metrics:histogram_timed_update(frame_time,syslog_octet_frame,parse,[Buffer]),
+  [Module:Function(Frame) || Frame <- Frames],
+  folsom_metrics:notify({frames, length(Frames)}),
   {reply, Buffer2, State};
 handle_call(_Request, _From, State) ->
   {reply, undef, State}.

@@ -12,6 +12,7 @@
 -export([route_message/1]).
 -export([convert/2]).
 -export([get_value/3]).
+-export ([do_work/4]).
 
 
 start() ->
@@ -27,19 +28,19 @@ stop(_State) ->
   ok.
 
 handle(Buffer)->
-  do_work(syslog_pipeline_worker_frame, call, Buffer, dropped_frames).
+  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_frame, call, Buffer, dropped_frames]).
 
 parse_header(Frame)->
-  do_work(syslog_pipeline_worker_header, cast, Frame, dropped_headers).
+  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_header, cast, Frame, dropped_headers]).
 
 parse_body(Message)->
-  do_work(syslog_pipeline_worker_body, cast, Message, dropped_bodies).
+  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_body, cast, Message, dropped_bodies]).
 
 route_message(Message)->
-  do_work(syslog_pipeline_worker_router, cast, Message, dropped_routes).
+  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_router, cast, Message, dropped_routes]).
 
 convert(Message, Worker)->
-  do_work(Worker, cast, Message, dropped_events).
+  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[Worker, cast, Message, dropped_events]).
 
 do_work(Pool, Fn, Messages, Metric)->
   case poolboy:checkout(Pool, false) of

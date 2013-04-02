@@ -2,8 +2,11 @@
 
 -export([init/0]).
 -export([submit_report/1]).
+-export([do_report/0]).
 
 init()->
+  %% Workers
+  folsom_metrics:new_histogram(checkout_time, uniform),
   %% Frames
   folsom_metrics:new_spiral(frames),
   folsom_metrics:new_histogram(frame_time, uniform),
@@ -28,7 +31,12 @@ init()->
 submit_report({Mod, Function})->
   Time = calendar:universal_time(),
   %% TODO add more metrics
-  [Mod:Function(make_message(Time, Key, Value)) || {Key, Value} <- [
+  [Mod:Function(make_message(Time, Key, Value)) || {Key, Value} <- do_report()],
+  ok.
+
+do_report()->
+  [
+    {<<"checkout_time">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(checkout_time), -1)},
     {<<"frames_per_minute">>, per_minute(frames)},
     {<<"messages_per_minute">>, per_minute(valid_bodies)},
     {<<"events_per_minute">>, per_minute(events)},
@@ -36,13 +44,12 @@ submit_report({Mod, Function})->
     {<<"dropped_headers">>, folsom_metrics:get_metric_value(dropped_headers)},
     {<<"dropped_bodies">>, folsom_metrics:get_metric_value(dropped_bodies)},
     {<<"dropped_routes">>, folsom_metrics:get_metric_value(dropped_routes)},
-    {<<"dropped_routes">>, folsom_metrics:get_metric_value(dropped_events)},
+    {<<"dropped_events">>, folsom_metrics:get_metric_value(dropped_events)},
     {<<"frame_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(frame_time), -1)},
     {<<"header_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(header_time), -1)},
     {<<"body_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(body_time), -1)},
     {<<"router_time_avg">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(router_time), -1)}
-  ]],
-  ok.
+  ].
 
 make_message(Time, Key, Value)->
   [
