@@ -5,8 +5,12 @@
 -export([do_report/0]).
 
 init()->
+  %% Rings
+  folsom_metrics:new_histogram(ring_buffer_metric, uniform),
+  folsom_metrics:new_histogram(server_ring_metric, uniform),
+
   %% Workers
-  folsom_metrics:new_histogram(checkout_time, uniform),
+  folsom_metrics:new_histogram(handle_time, uniform),
   %% Frames
   folsom_metrics:new_spiral(frames),
   folsom_metrics:new_histogram(frame_time, uniform),
@@ -36,10 +40,10 @@ submit_report({Mod, Function})->
 
 do_report()->
   [
-    {<<"checkout_time">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(checkout_time), -1)},
-    {<<"frames_per_minute">>, per_minute(frames)},
-    {<<"messages_per_minute">>, per_minute(valid_bodies)},
-    {<<"events_per_minute">>, per_minute(events)},
+    {<<"handle_time">>, syslog_pipeline:get_value(harmonic_mean, folsom_metrics:get_histogram_statistics(handle_time), -1)},
+    {<<"frames_per_second">>, per_second(frames)},
+    {<<"messages_per_second">>, per_second(valid_bodies)},
+    {<<"events_per_second">>, per_second(events)},
     {<<"dropped_frames">>, folsom_metrics:get_metric_value(dropped_frames)},
     {<<"dropped_headers">>, folsom_metrics:get_metric_value(dropped_headers)},
     {<<"dropped_bodies">>, folsom_metrics:get_metric_value(dropped_bodies)},
@@ -65,6 +69,6 @@ make_message(Time, Key, Value)->
     ]}
   ].
 
-per_minute(Name)->
+per_second(Name)->
   Props = folsom_metrics:get_metric_value(Name),
-  syslog_pipeline:get_value(one, Props, 0).
+  syslog_pipeline:get_value(one, Props, 0)/60.

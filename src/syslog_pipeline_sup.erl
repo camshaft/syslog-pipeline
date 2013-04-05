@@ -3,7 +3,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/3]).
 
 %% supervisor.
 -export([init/1]).
@@ -12,23 +12,29 @@
 
 %% API.
 
--spec start_link() -> {ok, pid()}.
-start_link() ->
-  supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
+-spec start_link(atom(), integer(), integer()) -> {ok, pid()}.
+start_link(Name, HandleSize, ServerSize) ->
+  supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, [Name, HandleSize, ServerSize]).
 
 %% supervisor.
 
-init([]) ->
+init([Name, HandleSize, ServerSize]) ->
   %% Initialize the metrics
   syslog_pipeline_metrics:init(),
 
-  %% If we have feedback enabled, emit the metrics into ourselves
-  timer:apply_interval(5000, syslog_pipeline_metrics, submit_report, [{syslog_pipeline, route_message}]),
+  Name = ets:new(Name, [{read_concurrency, true}, named_table]),
 
-  {ok, Pools} = application:get_env(syslog_pipeline, workers),
-  PoolSpecs = lists:map(fun({Name, SizeArgs, WorkerArgs}) ->
-      PoolArgs = [{name, {local, Name}},
-                  {worker_module, Name}] ++ SizeArgs,
-      poolboy:child_spec(Name, PoolArgs, WorkerArgs)
-  end, Pools),
-  {ok, {{one_for_one, 10, 10}, PoolSpecs}}.
+  RingTable = concat_tuples(Name, '_ring_buf'),
+
+  {ok, RingBuf} = ring_buf:start_link(HandleSize, RingTable),
+  {ok, ServerRing} = server_ring:start_link(syslog_pipeline_worker, [], ServerSize, concat_tuples(Name, '_server_ring')),
+
+  % Module, Opts, Size, Name
+
+  true = ets:insert(Name, {rings, {RingBuf, ServerRing, RingTable}}),
+
+  {ok, {{one_for_one, 10, 10}, []}}.
+
+%% @private
+concat_tuples(T1, T2)->
+  list_to_atom(atom_to_list(T1)++atom_to_list(T2)).

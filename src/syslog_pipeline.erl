@@ -4,53 +4,22 @@
 %%
 -module (syslog_pipeline).
 
--export([start/0, start/2]).
--export([stop/0, stop/1]).
--export([handle/1]).
--export([parse_header/1]).
--export([parse_body/1]).
--export([route_message/1]).
--export([convert/2]).
+-export([start_pipeline/3]).
+-export([handle/2]).
 -export([get_value/3]).
--export ([do_work/4]).
 
+start_pipeline(Name, HandleSize, ServerSize) ->
+  syslog_pipeline_sup:start_link(Name, HandleSize, ServerSize),
+  {ok, Name}.
 
-start() ->
-  application:start(?MODULE).
-
-stop() ->
-  application:stop(?MODULE).
-
-start(_Type, _Args) ->
-  syslog_pipeline_sup:start_link().
-
-stop(_State) ->
-  ok.
-
-handle(Buffer)->
-  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_frame, call, Buffer, dropped_frames]).
-
-parse_header(Frame)->
-  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_header, cast, Frame, dropped_headers]).
-
-parse_body(Message)->
-  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_body, cast, Message, dropped_bodies]).
-
-route_message(Message)->
-  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[syslog_pipeline_worker_router, cast, Message, dropped_routes]).
-
-convert(Message, Worker)->
-  folsom_metrics:histogram_timed_update(checkout_time,?MODULE,do_work,[Worker, cast, Message, dropped_events]).
-
-do_work(Pool, Fn, Messages, Metric)->
-  case poolboy:checkout(Pool, false) of
-    full ->
-      folsom_metrics:notify({Metric, {inc, 1}});
-    Worker ->
-      Result = gen_server:Fn(Worker, {handle, Messages}),
-      poolboy:checkin(Pool, Worker),
-      Result
-  end.
+handle(Ref, Buffer)->
+  {_, {RingBuf, ServerRing, RingTable}} = hd(ets:lookup(Ref, rings)),
+  {Frames, Buffer2} = folsom_metrics:histogram_timed_update(frame_time,syslog_octet_frame,parse,[Buffer]),
+  {ok, Ids} = folsom_metrics:histogram_timed_update(ring_buffer_metric,ring_buf,add_all,[RingBuf,Frames]),
+  folsom_metrics:histogram_timed_update(server_ring_metric,server_ring,transaction,[ServerRing,fun
+    (Pid) -> gen_server:cast(Pid, {frames, RingTable, Ids})
+  end]),
+  Buffer2.
 
 %% @doc Faster alternative to proplists:get_value/3.
 %% @private
