@@ -1,56 +1,56 @@
 -module(syslog_pipeline_worker).
--behaviour(gen_server).
 
--export([start_link/1]).
--export([init/1]).
--export([handle_call/3]).
--export([handle_cast/2]).
--export([handle_info/2]).
--export([terminate/2]).
--export([code_change/3]).
+-export ([execute/2]).
 
--record (state, {}).
+-include ("syslog_pipeline.hrl").
 
-start_link(_Opts) ->
-  gen_server:start_link(?MODULE, #state{}, []).
+-spec execute(binary(), [{atom(), term()}]) -> [syslog_pipeline:entry()].
+execute(Frames, Env) ->
+  BodyParser = syslog_pipeline:get_value(body_parser, Env, syslog_message_keyvalue),
+  Emitters = syslog_pipeline:get_value(emitters, Env, []),
 
-init(State) ->
-  {ok, State}.
+  %% Parse the frames
+  Entries = [parse(Frame, BodyParser) || Frame <- Frames],
 
-handle_call(_Request, _From, State) ->
-  {reply, undef, State}.
+  %% Emit and expand the messages
+  [emit(Entries, Emitter) || Emitter <- Emitters],
 
-handle_cast({frames,Table,FrameIds}, State) ->
-  [handle_frame(ring_buf:read(Table,Id)) || Id <- FrameIds],
-  {noreply, State};
-handle_cast(_Msg, State) ->
-  io:format("~p~n", [_Msg]),
-  {noreply, State}.
+  %% Return the parsed frames
+  Entries.
 
-handle_info(_Info, State) ->
-  {noreply, State}.
-
-terminate(_Reason, _State) ->
-  ok.
-
-code_change(_OldVsn, State, _Extra) ->
-  {ok, State}.
-
-handle_frame(Frame)->
-  % io:format("~p~n", [Frame]),
+parse(Frame, BodyParser) ->
   case syslog_header:parse(Frame) of
     {ok, Entry} ->
-      % io:format("~p~n", [Entry]),
-      case syslog_message_keyvalue:parse(syslog_pipeline:get_value(message, Entry, <<>>)) of
+      try BodyParser:parse(syslog_pipeline:get_value(message, Entry, <<>>)) of
         {ok, Fields} ->
-          ParsedEntry = [{message_fields, Fields}|Entry],
-          % io:format("~p~n", [ParsedEntry]),
-          %% TODO route the message
-          folsom_metrics:notify(valid_bodies, 1),
-          ParsedEntry;
+          [{message_fields, Fields}|Entry];
         _ ->
-          ok
+          error
+      catch _:_ ->
+        error
       end;
     _ ->
-      ok
+      error
   end.
+
+emit(Entries, {Emitter, []}) ->
+  Emitter:send(Entries);
+emit(Entries, {Emitter, Expanders}) ->
+  Entries2 = expand_entries(Entries, Expanders, []),
+  Emitter:send(Entries2).
+
+expand_entries([], _, Expanded) ->
+  Expanded;
+expand_entries([Entry|Entries], Expanders, Expanded) ->
+  ExpandedEntry = expand(Entry, Expanders, []),
+  expand_entries(Entries, Expanders, ExpandedEntry++Expanded).
+
+expand(error, _, Entries) ->
+  Entries;
+expand(_Entry, [], Entries) ->
+  Entries;
+expand(Entry, [Expander|Expanders], Entries) ->
+  Entries2 = try Expander:expand(Entry) catch
+    _:_ -> []
+  end ++ Entries,
+  expand(Entry, Expanders, Entries2).

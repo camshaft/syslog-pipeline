@@ -3,7 +3,7 @@
   {description, "Syslog processing pipeline"},
   {vsn, "0.1.0"},
   {registered, [syslog_pipeline_sup]},
-  {applications, [kernel, stdlib, folsom]},
+  {applications, [kernel, stdlib]},
   {mod, { syslog_pipeline_app, []}},
   {env, []}
 ]}.

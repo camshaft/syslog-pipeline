@@ -14,15 +14,10 @@ deps:
 
 clean:
 	$(REBAR) clean
+	@rm -rf ebin logs
 
 distclean: clean 
 	$(REBAR) delete-deps
-
-test-compile: test-deps
-	$(REBAR) -C rebar.test.config compile
-
-test-deps:
-	$(REBAR) -C rebar.test.config get-deps
 
 CT_RUN = ct_run \
 	-noshell \
@@ -30,7 +25,7 @@ CT_RUN = ct_run \
 	-dir test \
 	-logdir logs
 
-test: test-compile
+test: compile
 	@mkdir -p logs/
 	@$(CT_RUN) -suite pipeline_SUITE
 
