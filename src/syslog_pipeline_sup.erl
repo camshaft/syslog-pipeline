@@ -3,7 +3,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/2]).
+-export([start_link/0]).
 
 %% supervisor.
 -export([init/1]).
@@ -12,15 +12,19 @@
 
 %% API.
 
--spec start_link(atom(), [{atom(), term()}]) -> {ok, pid()}.
-start_link(Name, Env) ->
-  supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, [Name, Env]).
+-spec start_link() -> {ok, pid()}.
+start_link() ->
+  supervisor:start_link({local, ?SUPERVISOR}, ?MODULE, []).
 
 %% supervisor.
 
-init([Name, Env]) ->
-  Name = ets:new(Name, [{read_concurrency, true}, ordered_set, named_table, public]),
+init([]) ->
+  syslog_pipeline_server = ets:new(syslog_pipeline_server, [
+    {read_concurrency, true}, ordered_set, public, named_table]),
 
-  true = ets:insert(Name, {env, Env}),
+  Procs = [
+    {syslog_pipeline_server, {syslog_pipeline_server, start_link, []},
+      permanent, 5000, worker, [syslog_pipeline_sup]}
+  ],
 
-  {ok, {{one_for_one, 10, 10}, []}}.
+  {ok, {{one_for_one, 10, 10}, Procs}}.

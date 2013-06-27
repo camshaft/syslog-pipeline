@@ -9,7 +9,7 @@
 %% API.
 
 start(_, _) ->
-  ok.
+  syslog_pipeline_sup:start_link().
 
 stop(_) ->
   ok.

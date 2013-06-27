@@ -1,6 +1,6 @@
 -module (stdout_emitter).
 
--export([emit/1]).
+-export([send/1]).
 
-emit(Messages)->
+send(Messages)->
   io:format("~n~p~n", [Messages]).

@@ -1,13 +1,27 @@
 -module(syslog_pipeline_worker).
 
--export ([execute/2]).
+-export ([start_link/1]).
+-export ([loop/1]).
 
--include ("syslog_pipeline.hrl").
+-spec start_link(syslog_pipeline:ref()) -> ok.
+start_link(Ref) ->
+  Pid = spawn_link(?MODULE, loop, [Ref]),
+  {ok, Pid}.
 
--spec execute(binary(), [{atom(), term()}]) -> [syslog_pipeline:entry()].
-execute(Frames, Env) ->
-  BodyParser = syslog_pipeline:get_value(body_parser, Env, syslog_message_keyvalue),
-  Emitters = syslog_pipeline:get_value(emitters, Env, []),
+loop(Ref) ->
+  receive
+    {execute, Frames} ->
+      execute(Ref, Frames),
+      ?MODULE:loop(Ref);
+    _ ->
+      ?MODULE:loop(Ref)
+  end.
+
+-spec execute(syslog_pipeline:ref(), [binary()]) -> [syslog_pipeline:entry()].
+execute(Ref, Frames) ->
+  %% Look up the env for our pipeline
+  BodyParser = syslog_pipeline_server:get_body_parser(Ref),
+  Emitters = syslog_pipeline_server:get_emitters(Ref),
 
   %% Parse the frames
   Entries = [parse(Frame, BodyParser) || Frame <- Frames],
@@ -20,10 +34,10 @@ execute(Frames, Env) ->
 
 parse(Frame, BodyParser) ->
   case syslog_header:parse(Frame) of
-    {ok, Entry} ->
-      try BodyParser:parse(syslog_pipeline:get_value(message, Entry, <<>>)) of
+    {ok, {_, _, _, _, _, _, _, Body} = Headers} ->
+      try BodyParser:parse(Body) of
         {ok, Fields} ->
-          [{message_fields, Fields}|Entry];
+          {Headers, Fields};
         _ ->
           error
       catch _:_ ->

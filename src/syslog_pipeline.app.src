@@ -2,7 +2,7 @@
   {id, "syslog-pipeline"},
   {description, "Syslog processing pipeline"},
   {vsn, "0.1.0"},
-  {registered, [syslog_pipeline_sup]},
+  {registered, [syslog_pipeline_sup, syslog_pipeline_server]},
   {applications, [kernel, stdlib]},
   {mod, { syslog_pipeline_app, []}},
   {env, []}

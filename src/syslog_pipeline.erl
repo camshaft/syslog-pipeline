@@ -4,8 +4,10 @@
 %%
 -module (syslog_pipeline).
 
--export([start_pipeline/2]).
+-export([start_pipeline/4]).
 -export([handle/2]).
+-export([set_body_parser/2]).
+-export([set_emitters/2]).
 -export([get_value/3]).
 
 -type entry() :: [entry_line()].
@@ -20,31 +22,39 @@
       | {message_id, binary() | undefined}
       | {message, binary()}.
 -type bin_proplist() :: [{binary(), binary()}].
+-type expander_list() :: [{module(), [module()]}].
 -type ref() :: atom().
 
 -export_type ([entry/0, bin_proplist/0, ref/0]).
 
--spec start_pipeline(atom(), [{atom(), term()}]) -> {ok, ref()}.
-start_pipeline(Ref, Env) ->
-  syslog_pipeline_sup:start_link(Ref, Env),
-  {ok, Ref}.
+-spec start_pipeline(ref(), pos_integer(), module(), expander_list()) -> {ok, ref()}.
+start_pipeline(Ref, NumWorkers, BodyParser, Emitters) ->
+  supervisor:start_child(syslog_pipeline_sup, child_spec(Ref, NumWorkers, BodyParser, Emitters)).
+
+-spec child_spec(ref(), pos_integer(), module(), expander_list()) -> supervisor:child_spec().
+child_spec(Ref, NumWorkers, BodyParser, Emitters) ->
+  {{syslog_pipeline_worker_sup, Ref}, {syslog_pipeline_worker_sup, start_link, [
+    Ref, NumWorkers, BodyParser, Emitters
+  ]}, permanent, 5000, supervisor, [syslog_pipeline_worker_sup]}.
 
 -spec handle(ref(), binary()) -> binary().
-handle(Ref, Buffer)->
+handle(Ref, Buffer) ->
   %% We'll parse the octet frame in their process since it's super fast
   {Frames, Buffer2} = syslog_octet_frame:parse(Buffer),
 
-  %% Look up the env for our pipeline
-  {_, Env} = hd(ets:lookup(Ref, env)),
+  %% Get a worker pid
+  Worker = syslog_pipeline_worker_sup:get_worker(Ref),
 
   %% Send off the frames to a worker
-  %% TODO are there better ways to do this?:
-  %%  - gen_server (might be too much overhead - we don't care if this crashes)
-  %%  - ring buffer
-  %%  - worker pool that handles casting well
-  spawn(syslog_pipeline_worker, execute, [Frames, Env]),
+  Worker ! {execute, Frames},
 
   Buffer2.
+
+set_body_parser(Ref, Mod) ->
+  syslog_pipeline_server:set_body_parser(Ref, Mod).
+
+set_emitters(Ref, Emitters) ->
+  syslog_pipeline_server:set_emitters(Ref, Emitters).
 
 %% @doc Faster alternative to proplists:get_value/3.
 %% @private
