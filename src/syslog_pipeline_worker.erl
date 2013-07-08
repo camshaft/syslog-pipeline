@@ -1,17 +1,21 @@
 -module(syslog_pipeline_worker).
 
 -export ([start_pool/4]).
+-export ([start_pool/5]).
 -export ([handle/2]).
 
 -export ([start_link/1]).
 -export ([loop/1]).
 
 start_pool(Ref, NumWorkers, BodyParser, Emitters) ->
+  start_pool(Ref, NumWorkers, NumWorkers+1000, BodyParser, Emitters).
+
+start_pool(Ref, NumWorkers, MaxWorkers, BodyParser, Emitters) ->
   syslog_pipeline_server:set_body_parser(Ref, BodyParser),
   syslog_pipeline_server:set_emitters(Ref, Emitters),
   pooler:new_pool([
     {name, Ref},
-    {max_count, NumWorkers+100},
+    {max_count, MaxWorkers},
     {init_count, NumWorkers},
     {start_mfa, {?MODULE, start_link, [Ref]}}
   ]).

@@ -22,6 +22,7 @@ groups() ->
   ]}].
 
 init_per_suite(Config) ->
+  application:start(syslog_pipeline),
   Config.
 
 end_per_suite(_Config) ->
