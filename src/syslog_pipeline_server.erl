@@ -3,8 +3,6 @@
 
 %% API.
 -export([start_link/0]).
--export([get_workers/1]).
--export([set_workers/2]).
 -export([get_body_parser/1]).
 -export([set_body_parser/2]).
 -export([get_emitters/1]).
@@ -24,18 +22,10 @@
 
 %% API.
 
-%% @doc Start the ranch_server gen_server.
+%% @doc Start the syslog_pipeline_server gen_server.
 -spec start_link() -> {ok, pid()}.
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
-get_workers(Ref) ->
-  ets:lookup_element(?TAB, {workers, Ref}, 2).
-
-%% @private
--spec set_workers(syslog_pipeline:ref(), [{pos_integer(), pid()}]) -> ok.
-set_workers(Ref, Workers) ->
-  gen_server:call(?MODULE, {set_workers, Ref, Workers}).
 
 %% @doc Return the pipeline's emitter.
 -spec get_body_parser(syslog_pipeline:ref()) -> module().
@@ -69,9 +59,6 @@ handle_call({set_body_parser, Ref, Mod}, _, State) ->
   {reply, Response, State};
 handle_call({set_emitters, Ref, Emitters}, _, State) ->
   Response = ets:insert(?TAB, {{emitters, Ref}, Emitters}),
-  {reply, Response, State};
-handle_call({set_workers, Ref, Workers}, _, State) ->
-  Response = ets:insert(?TAB, {{workers, Ref}, Workers}),
   {reply, Response, State};
 handle_call(_Request, _From, State) ->
   {reply, ignore, State}.

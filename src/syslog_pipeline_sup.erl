@@ -24,7 +24,9 @@ init([]) ->
 
   Procs = [
     {syslog_pipeline_server, {syslog_pipeline_server, start_link, []},
-      permanent, 5000, worker, [syslog_pipeline_sup]}
+      permanent, 5000, worker, [syslog_pipeline_sup]},
+    {pooler_sup, {pooler_sup, start_link, []},
+      permanent, infinity, supervisor, [pooler_sup]}
   ],
 
   {ok, {{one_for_one, 10, 10}, Procs}}.

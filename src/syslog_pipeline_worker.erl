@@ -1,7 +1,31 @@
 -module(syslog_pipeline_worker).
 
+-export ([start_pool/4]).
+-export ([handle/2]).
+
 -export ([start_link/1]).
 -export ([loop/1]).
+
+start_pool(Ref, NumWorkers, BodyParser, Emitters) ->
+  syslog_pipeline_server:set_body_parser(Ref, BodyParser),
+  syslog_pipeline_server:set_emitters(Ref, Emitters),
+  pooler:new_pool([
+    {name, Ref},
+    {max_count, NumWorkers+100},
+    {init_count, NumWorkers},
+    {start_mfa, {?MODULE, start_link, [Ref]}}
+  ]).
+
+handle(Ref, Buffer) ->
+  %% We'll parse the octet frame in their process since it's super fast
+  {Frames, Buffer2} = syslog_octet_frame:parse(Buffer),
+
+  Worker = pooler:take_member(Ref),
+
+  %% Send off the frames to a worker
+  Worker ! {execute, Frames},
+
+  Buffer2.
 
 -spec start_link(syslog_pipeline:ref()) -> ok.
 start_link(Ref) ->
@@ -12,6 +36,7 @@ loop(Ref) ->
   receive
     {execute, Frames} ->
       execute(Ref, Frames),
+      pooler:return_member(Ref, self()),
       ?MODULE:loop(Ref);
     _ ->
       ?MODULE:loop(Ref)
