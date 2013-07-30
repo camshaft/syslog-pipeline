@@ -1,83 +1,74 @@
 -module(syslog_pipeline_worker).
 
--export ([start_pool/4]).
--export ([start_pool/5]).
+% api
+
 -export ([handle/2]).
 
--export ([start_link/1]).
--export ([loop/1]).
+% private
 
-start_pool(Ref, NumWorkers, BodyParser, Emitters) ->
-  start_pool(Ref, NumWorkers, NumWorkers+1000, BodyParser, Emitters).
-
-start_pool(Ref, NumWorkers, MaxWorkers, BodyParser, Emitters) ->
-  syslog_pipeline_server:set_body_parser(Ref, BodyParser),
-  syslog_pipeline_server:set_emitters(Ref, Emitters),
-  pooler:new_pool([
-    {name, Ref},
-    {max_count, MaxWorkers},
-    {init_count, NumWorkers},
-    {start_mfa, {?MODULE, start_link, [Ref]}}
-  ]).
+-export ([execute/2]).
 
 handle(Ref, Buffer) ->
   %% We'll parse the octet frame in their process since it's super fast
   {Frames, Buffer2} = syslog_octet_frame:parse(Buffer),
 
-  Worker = pooler:take_member(Ref),
-
   %% Send off the frames to a worker
-  Worker ! {execute, Frames},
+  spawn(?MODULE, execute, [Ref, Frames]),
 
   Buffer2.
-
--spec start_link(syslog_pipeline:ref()) -> ok.
-start_link(Ref) ->
-  Pid = spawn_link(?MODULE, loop, [Ref]),
-  {ok, Pid}.
-
-loop(Ref) ->
-  receive
-    {execute, Frames} ->
-      execute(Ref, Frames),
-      pooler:return_member(Ref, self()),
-      ?MODULE:loop(Ref);
-    _ ->
-      ?MODULE:loop(Ref)
-  end.
 
 -spec execute(syslog_pipeline:ref(), [binary()]) -> [syslog_pipeline:entry()].
 execute(Ref, Frames) ->
   %% Look up the env for our pipeline
-  BodyParser = syslog_pipeline_server:get_body_parser(Ref),
+  BodyParsers = syslog_pipeline_server:get_body_parsers(Ref),
   Emitters = syslog_pipeline_server:get_emitters(Ref),
+  Filters = syslog_pipeline_server:get_filters(Ref),
 
   %% Parse the frames
-  Entries = [parse(Frame, BodyParser) || Frame <- Frames],
+  Entries = [parse(Frame, BodyParsers) || Frame <- Frames],
+
+  %% Filter/transform the entries
+  FilteredEntries = [filter(Entry, Filters) || Entry <- Entries],
 
   %% Emit and expand the messages
-  [emit(Entries, Emitter) || Emitter <- Emitters],
+  [emit(FilteredEntries, Emitter) || Emitter <- Emitters],
 
   %% Return the parsed frames
   Entries.
 
-parse(Frame, BodyParser) ->
+parse(Frame, BodyParsers) ->
   case syslog_header:parse(Frame) of
     {ok, {_, _, _, _, _, _, _, Body} = Headers} ->
-      try BodyParser:parse(Body) of
+      case parse_body(Body, BodyParsers) of
         {ok, Fields} ->
           {Headers, Fields};
         _ ->
           error
-      catch _:_ ->
-        error
       end;
     _ ->
       error
   end.
 
-emit(Entries, {Emitter, []}) ->
-  Emitter:send(Entries);
+parse_body(error, []) ->
+  error;
+parse_body(Body, [BodyParser|BodyParsers]) ->
+  case catch BodyParser:parse(Body) of
+    {ok, Fields} ->
+      {ok, Fields};
+    _ ->
+      parse_body(Body, BodyParsers)
+  end.
+
+filter(Entry, []) ->
+  Entry;
+filter(Entry, [Filter|Filters]) ->
+  case catch Filter:filter(Entry) of
+    {ok, FilteredEntry} ->
+      filter(FilteredEntry, Filters);
+    _ ->
+      error
+  end.
+
 emit(Entries, {Emitter, Expanders}) ->
   Entries2 = expand_entries(Entries, Expanders, []),
   Emitter:send(Entries2).

@@ -3,10 +3,12 @@
 
 %% API.
 -export([start_link/0]).
--export([get_body_parser/1]).
--export([set_body_parser/2]).
+-export([get_body_parsers/1]).
+-export([set_body_parsers/2]).
 -export([get_emitters/1]).
 -export([set_emitters/2]).
+-export([get_filters/1]).
+-export([set_filters/2]).
 
 %% gen_server.
 -export([init/1]).
@@ -27,15 +29,15 @@
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% @doc Return the pipeline's emitter.
--spec get_body_parser(syslog_pipeline:ref()) -> module().
-get_body_parser(Ref) ->
-  ets:lookup_element(?TAB, {body_parser, Ref}, 2).
+%% @doc Return the pipeline's boy parsers.
+-spec get_body_parsers(syslog_pipeline:ref()) -> [module()].
+get_body_parsers(Ref) ->
+  ets:lookup_element(?TAB, {body_parsers, Ref}, 2).
 
 %% @private
--spec set_body_parser(syslog_pipeline:ref(), module()) -> ok.
-set_body_parser(Ref, Mod) ->
-  gen_server:call(?MODULE, {set_body_parser, Ref, Mod}).
+-spec set_body_parsers(syslog_pipeline:ref(), [module()]) -> ok.
+set_body_parsers(Ref, Mods) ->
+  gen_server:call(?MODULE, {set_body_parsers, Ref, Mods}).
 
 %% @doc Return the pipeline's emitters.
 -spec get_emitters(syslog_pipeline:ref()) -> [{binary(), binary()}].
@@ -47,6 +49,16 @@ get_emitters(Ref) ->
 set_emitters(Ref, Emitters) ->
   gen_server:call(?MODULE, {set_emitters, Ref, Emitters}).
 
+%% @doc Return the pipeline's filters.
+-spec get_filters(syslog_pipeline:ref()) -> [{binary(), binary()}].
+get_filters(Ref) ->
+  ets:lookup_element(?TAB, {filters, Ref}, 2).
+
+%% @private
+-spec set_filters(syslog_pipeline:ref(), module()) -> ok.
+set_filters(Ref, Filters) ->
+  gen_server:call(?MODULE, {set_filters, Ref, Filters}).
+
 %% gen_server.
 
 %% @private
@@ -54,11 +66,14 @@ init([]) ->
   {ok, #state{}}.
 
 %% @private
-handle_call({set_body_parser, Ref, Mod}, _, State) ->
-  Response = ets:insert(?TAB, {{body_parser, Ref}, Mod}),
+handle_call({set_body_parsers, Ref, Mods}, _, State) ->
+  Response = ets:insert(?TAB, {{body_parsers, Ref}, Mods}),
   {reply, Response, State};
 handle_call({set_emitters, Ref, Emitters}, _, State) ->
   Response = ets:insert(?TAB, {{emitters, Ref}, Emitters}),
+  {reply, Response, State};
+handle_call({set_filters, Ref, Filters}, _, State) ->
+  Response = ets:insert(?TAB, {{filters, Ref}, Filters}),
   {reply, Response, State};
 handle_call(_Request, _From, State) ->
   {reply, ignore, State}.

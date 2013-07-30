@@ -29,7 +29,7 @@ end_per_suite(_Config) ->
   ok.
 
 init_per_group(Name, Config) ->
-  {ok, Ref} = syslog_pipeline:start_pipeline(Name, 10, syslog_message_keyvalue, []),
+  {ok, Ref} = syslog_pipeline:start_pipeline(Name, syslog_message_keyvalue, []),
   [{server_ref, Ref}|Config].
 
 end_per_group(_Name, _) ->
