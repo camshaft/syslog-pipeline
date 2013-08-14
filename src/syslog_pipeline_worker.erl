@@ -37,7 +37,16 @@ execute(Ref, Frames) ->
   Entries.
 
 parse(Frame, BodyParsers) ->
-  case syslog_header:parse(Frame) of
+  %% Strip the body of the \n so we don't get it in the parsed output
+  Length = byte_size(Frame)-1,
+  StrippedFrame = case Frame of
+    <<SFrame:Length/binary, "\n">> ->
+      SFrame;
+    Other ->
+      Other
+  end,
+
+  case syslog_header:parse(StrippedFrame) of
     {ok, {_, _, _, _, _, _, _, Body} = Headers} ->
       case parse_body(Body, BodyParsers) of
         {ok, Fields} ->
