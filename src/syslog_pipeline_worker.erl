@@ -25,7 +25,7 @@ execute(Ref, Frames) ->
   Filters = syslog_pipeline_server:get_filters(Ref),
 
   %% Parse the frames
-  Entries = [parse(Frame, BodyParsers) || Frame <- Frames],
+  Entries = [parse(Frame, BodyParsers) || Frame <- lists:reverse(Frames)],
 
   %% Filter/transform the entries
   FilteredEntries = [filter(Entry, Filters) || Entry <- Entries],
