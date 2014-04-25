@@ -3,22 +3,26 @@
 % api
 
 -export ([handle/2]).
+-export ([handle/3]).
 
 % private
 
--export ([execute/2]).
+-export ([execute/3]).
 
 handle(Ref, Buffer) ->
+  handle(Ref, Buffer, []).
+
+handle(Ref, Buffer, Headers) ->
   %% We'll parse the octet frame in their process since it's super fast
   {Frames, Buffer2} = syslog_octet_frame:parse(Buffer),
 
   %% Send off the frames to a worker
-  spawn(?MODULE, execute, [Ref, Frames]),
+  spawn(?MODULE, execute, [Ref, Frames, Headers]),
 
   Buffer2.
 
--spec execute(syslog_pipeline:ref(), [binary()]) -> [syslog_pipeline:entry()].
-execute(Ref, Frames) ->
+-spec execute(syslog_pipeline:ref(), [binary()], [{atom(), binary()}]) -> [syslog_pipeline:entry()].
+execute(Ref, Frames, Headers) ->
   %% Look up the env for our pipeline
   BodyParsers = syslog_pipeline_server:get_body_parsers(Ref),
   Emitters = syslog_pipeline_server:get_emitters(Ref),
@@ -27,8 +31,11 @@ execute(Ref, Frames) ->
   %% Parse the frames
   Entries = [parse(Frame, BodyParsers) || Frame <- lists:reverse(Frames)],
 
+  %% Merge the headers into the Entries
+  MergedEntries = merge_headers(Entries, Headers),
+
   %% Filter/transform the entries
-  FilteredEntries = [filter(Entry, Filters) || Entry <- Entries],
+  FilteredEntries = [filter(Entry, Filters) || Entry <- MergedEntries],
 
   %% Emit and expand the messages
   [emit(FilteredEntries, Emitter) || Emitter <- Emitters],
@@ -67,6 +74,29 @@ parse_body(Body, [BodyParser|BodyParsers]) ->
     _ ->
       parse_body(Body, BodyParsers)
   end.
+
+merge_headers(Entries, []) ->
+  Entries;
+merge_headers(Entries, [Header|Headers]) ->
+  Entries2 = [set_header(Entry, Header) || Entry <- Entries],
+  merge_headers(Entries2, Headers).
+
+set_header({{_, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields}, {priority, Priority}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header({{Priority, _, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields}, {version, Version}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header({{Priority, Version, _, Hostname, AppName, ProcID, MessageID, Message}, Fields}, {timestamp, Timestamp}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header({{Priority, Version, Timestamp, _, AppName, ProcID, MessageID, Message}, Fields}, {hostname, Hostname}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header({{Priority, Version, Timestamp, Hostname, _, ProcID, MessageID, Message}, Fields}, {app_name, AppName}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header({{Priority, Version, Timestamp, Hostname, AppName, _, MessageID, Message}, Fields}, {proc_id, ProcID}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header({{Priority, Version, Timestamp, Hostname, AppName, ProcID, _, Message}, Fields}, {message_id, MessageID}) ->
+  {{Priority, Version, Timestamp, Hostname, AppName, ProcID, MessageID, Message}, Fields};
+set_header(Entry, _) ->
+  Entry.
 
 filter(Entry, []) ->
   Entry;

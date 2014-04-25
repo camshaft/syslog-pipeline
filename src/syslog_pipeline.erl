@@ -7,6 +7,7 @@
 -export([start_pipeline/3]).
 -export([start_pipeline/4]).
 -export([handle/2]).
+-export([handle/3]).
 -export([set_body_parsers/2]).
 -export([set_emitters/2]).
 
@@ -42,7 +43,11 @@ start_pipeline(Ref, BodyParsers, Filters, Emitters) ->
 
 -spec handle(ref(), binary()) -> binary().
 handle(Ref, Buffer) ->
-  syslog_pipeline_worker:handle(Ref, Buffer).
+  handle(Ref, Buffer, []).
+
+-spec handle(ref(), binary(), [{atom(), binary()}]) -> binary().
+handle(Ref, Buffer, Headers) ->
+  syslog_pipeline_worker:handle(Ref, Buffer, Headers).
 
 set_body_parsers(Ref, Mods) ->
   syslog_pipeline_server:set_body_parsers(Ref, Mods).
